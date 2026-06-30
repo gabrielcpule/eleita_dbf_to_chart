@@ -26,18 +26,21 @@ export interface LetterLabelMap {
   [letter: string]: string
 }
 
+export type ChartType = 'bar' | 'horizontal-bar' | 'pie' | 'table'
+
 export interface QuestionConfig {
   column: QuestionColumn
   label: string
   alternatives: number
   letterLabels: LetterLabelMap
+  /** Per-question chart type. Falls back to the chart's default when unset. */
+  chartType?: ChartType
 }
-
-export type ChartType = 'bar' | 'horizontal-bar' | 'pie' | 'table'
 
 export interface ChartConfig {
   id: string
   questionConfigs: QuestionConfig[]
+  /** Default type used for newly-added questions and for the render-all fallback. */
   chartType: ChartType
 }
 

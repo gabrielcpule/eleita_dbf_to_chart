@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { toPng, toSvg } from 'html-to-image'
 import JSZip from 'jszip'
 import { useSurvey } from '../lib/survey-context'
-import { useFilteredRecords } from '../lib/hooks'
+import { useFilteredRecords, useAnsweredColumns } from '../lib/hooks'
+import { getEffectiveQuestionConfigs } from '../lib/questions'
 import { generateCsv } from '../lib/csv-generator'
 import { Button } from './ui/button'
 import {
@@ -25,11 +26,22 @@ function downloadBlob(blob: Blob, filename: string) {
 export function ExportMenu() {
   const { state } = useSurvey()
   const filteredRecords = useFilteredRecords()
+  const answeredColumns = useAnsweredColumns()
   const activeChart = state.chartConfigs[state.activeChartIndex]
+
+  // The questions actually rendered — explicit selections, or all answered
+  // columns when nothing is selected (render-all fallback).
+  const effectiveConfigs = useMemo(
+    () =>
+      activeChart
+        ? getEffectiveQuestionConfigs(activeChart, answeredColumns, filteredRecords)
+        : [],
+    [activeChart, answeredColumns, filteredRecords]
+  )
 
   const exportPng = useCallback(async () => {
     if (!activeChart) return
-    const containers = activeChart.questionConfigs
+    const containers = effectiveConfigs
       .map((qc) => document.getElementById(`chart-${qc.column}`))
       .filter(Boolean) as HTMLElement[]
 
@@ -60,11 +72,11 @@ export function ExportMenu() {
     } catch {
       toast.error('Failed to export PNG.')
     }
-  }, [activeChart])
+  }, [activeChart, effectiveConfigs])
 
   const exportSvg = useCallback(async () => {
     if (!activeChart) return
-    const containers = activeChart.questionConfigs
+    const containers = effectiveConfigs
       .map((qc) => document.getElementById(`chart-${qc.column}`))
       .filter(Boolean) as HTMLElement[]
 
@@ -95,20 +107,20 @@ export function ExportMenu() {
     } catch {
       toast.error('Failed to export SVG.')
     }
-  }, [activeChart])
+  }, [activeChart, effectiveConfigs])
 
   const exportCsv = useCallback(() => {
     if (!activeChart) return
-    const columns = activeChart.questionConfigs.map((qc) => qc.column)
+    const columns = effectiveConfigs.map((qc) => qc.column)
     const labels: Record<string, string> = {}
-    for (const qc of activeChart.questionConfigs) {
+    for (const qc of effectiveConfigs) {
       labels[qc.column] = qc.label || qc.column
     }
     const csv = generateCsv(filteredRecords, columns, labels)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     downloadBlob(blob, `data-${activeChart.id}.csv`)
     toast.success('Data exported as CSV.')
-  }, [activeChart, filteredRecords])
+  }, [activeChart, effectiveConfigs, filteredRecords])
 
   const exportAll = useCallback(async () => {
     await exportPng()

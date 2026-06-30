@@ -1,4 +1,5 @@
-import type { SurveyRecord, ChartConfig } from './types'
+import type { SurveyRecord, ChartConfig, ChartType } from './types'
+import { getEffectiveQuestionConfigs } from './questions'
 
 const ALPHABET = 'ABCDEFGHIJKLMNO'
 
@@ -11,14 +12,18 @@ export interface ChartDataPoint {
 export interface ChartSeries {
   questionColumn: string
   questionLabel: string
+  chartType: ChartType
   data: ChartDataPoint[]
 }
 
 export function computeChartData(
   records: SurveyRecord[],
-  config: ChartConfig
+  config: ChartConfig,
+  answeredColumns: string[] = []
 ): ChartSeries[] {
-  return config.questionConfigs.map((qc) => {
+  const effective = getEffectiveQuestionConfigs(config, answeredColumns, records)
+
+  return effective.map((qc) => {
     const expectedLetters = ALPHABET.slice(0, qc.alternatives).split('')
     const counts: Record<string, number> = {}
     let outrosCount = 0
@@ -50,6 +55,7 @@ export function computeChartData(
     return {
       questionColumn: qc.column,
       questionLabel: qc.label || qc.column,
+      chartType: qc.chartType ?? config.chartType,
       data,
     }
   })
