@@ -3,12 +3,8 @@ import { StepIndicator } from './components/step-indicator'
 import { UploadView } from './components/upload-view'
 import { FilterView } from './components/filter-view'
 import { ChartWorkspace } from './components/chart-workspace'
+import { ConfigSaveLoad } from './components/export-menu'
 import { Toaster } from './components/ui/sonner'
-
-// Placeholder — will be replaced in Task 12
-function ConfigSaveLoad() {
-  return null
-}
 
 function AppContent() {
   const { state } = useSurvey()
