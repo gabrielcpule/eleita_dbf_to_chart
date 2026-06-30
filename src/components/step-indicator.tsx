@@ -8,7 +8,7 @@ export function StepIndicator() {
 
   return (
     <nav className="flex items-center justify-center gap-2 py-4" aria-label="Workflow steps">
-      {([0, 1, 2, 3, 4] as StepIndex[]).map((step, i) => (
+      {([0, 1] as StepIndex[]).map((step, i) => (
         <div key={step} className="flex items-center gap-2">
           <button
             onClick={() => {
@@ -34,7 +34,7 @@ export function StepIndicator() {
             </span>
             <span className="hidden sm:inline">{STEP_LABELS[step]}</span>
           </button>
-          {i < 4 && (
+          {i < 1 && (
             <div className="h-px w-8 bg-border hidden sm:block" aria-hidden="true" />
           )}
         </div>

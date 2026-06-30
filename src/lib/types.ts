@@ -50,14 +50,11 @@ export interface DemographicsFilter {
   BAIRRO: string
 }
 
-export type StepIndex = 0 | 1 | 2 | 3 | 4
+export type StepIndex = 0 | 1
 
 export const STEP_LABELS: Record<StepIndex, string> = {
   0: 'Upload',
-  1: 'Filter',
-  2: 'Configure',
-  3: 'Visualize',
-  4: 'Export',
+  1: 'Charts',
 } as const
 
 export type SurveyAction =

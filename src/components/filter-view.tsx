@@ -204,7 +204,7 @@ export function FilterView() {
         <Button variant="outline" onClick={() => dispatch({ type: 'SET_STEP', payload: 0 })}>
           &larr; Back to Upload
         </Button>
-        <Button onClick={() => dispatch({ type: 'SET_STEP', payload: 2 })}>
+        <Button onClick={() => dispatch({ type: 'SET_STEP', payload: 1 })}>
           Configure Charts &rarr;
         </Button>
       </div>

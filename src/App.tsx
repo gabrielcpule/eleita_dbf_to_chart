@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { SurveyProvider, useSurvey } from './lib/survey-context'
 import { StepIndicator } from './components/step-indicator'
 import { UploadView } from './components/upload-view'
-import { FilterView } from './components/filter-view'
 import { ChartWorkspace } from './components/chart-workspace'
 import { ConfigSaveLoad } from './components/export-menu'
 import { Toaster } from './components/ui/sonner'
@@ -34,8 +33,7 @@ function AppContent() {
 
       <main className="container mx-auto px-4 py-6">
         {state.step === 0 && <UploadView />}
-        {state.step === 1 && <FilterView />}
-        {(state.step === 2 || state.step === 3 || state.step === 4) && <ChartWorkspace />}
+        {state.step === 1 && <ChartWorkspace />}
       </main>
 
       <Toaster />
