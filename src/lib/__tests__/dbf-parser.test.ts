@@ -3,7 +3,7 @@ import { parseDbf, DbfParseError } from '../dbf-parser'
 
 function makeMinimalDbf(records: Array<Record<string, string>>): ArrayBuffer {
   const fields = Object.keys(records[0] || {})
-  const fieldLen = fields.reduce((sum, f) => sum + 1, 0)
+  const fieldLen = fields.reduce((sum) => sum + 1, 0)
   const recordLen = fieldLen + 1
   const headerLen = 32 + (fields.length * 32) + 1
   const buffer = new ArrayBuffer(headerLen + (records.length * recordLen))
@@ -71,8 +71,6 @@ describe('parseDbf', () => {
   })
 
   it('skips deleted records (0x2A flag)', () => {
-    const records = [{ X: 'A' }, { X: 'B' }, { X: 'C' }]
-    const fields = ['X']
     const headerLen = 32 + (1 * 32) + 1
     const recordLen = 2
     const buf = new ArrayBuffer(headerLen + (3 * recordLen))
@@ -101,7 +99,6 @@ describe('parseDbf', () => {
   })
 
   it('trims whitespace from field values', () => {
-    const fields = ['X']
     const headerLen = 32 + (1 * 32) + 1
     const recordLen = 4
     const buf = new ArrayBuffer(headerLen + (1 * recordLen))

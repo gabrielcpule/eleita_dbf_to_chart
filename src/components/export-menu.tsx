@@ -120,11 +120,7 @@ export function ExportMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
-          Export ▼
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger render={<Button variant="outline" size="sm">Export ▼</Button>} />
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={exportPng}>Export PNG</DropdownMenuItem>
         <DropdownMenuItem onClick={exportSvg}>Export SVG</DropdownMenuItem>

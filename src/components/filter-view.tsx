@@ -97,7 +97,7 @@ export function FilterView() {
               </label>
               <Select
                 value={state.filters.demographics[col] || 'all'}
-                onValueChange={(v) => handleDemographicChange(col, v)}
+                onValueChange={(v) => v !== null && handleDemographicChange(col, v)}
               >
                 <SelectTrigger id={`filter-${col}`}>
                   <SelectValue placeholder="All" />

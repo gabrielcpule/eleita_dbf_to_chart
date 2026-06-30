@@ -5,7 +5,7 @@ import { ExportMenu } from './export-menu'
 import { Button } from './ui/button'
 
 export function ChartWorkspace() {
-  const { state, dispatch } = useSurvey()
+  const { dispatch } = useSurvey()
 
   return (
     <div className="flex flex-col gap-4">

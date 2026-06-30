@@ -135,7 +135,7 @@ export function ChartDisplay() {
                     cy="50%"
                     outerRadius={100}
                     innerRadius={40}
-                    label={({ label, count }) => `${label}: ${count}`}
+                    label={({ name, value }) => `${name}: ${value}`}
                     labelLine={{ strokeWidth: 1 }}
                   >
                     {series.data.map((_, i) => (

@@ -3,7 +3,6 @@ import { useSurvey } from '../lib/survey-context'
 import { parseDbf, DbfParseError } from '../lib/dbf-parser'
 import { detectQuestionColumns } from '../lib/types'
 import { Card } from './ui/card'
-import { Button } from './ui/button'
 import { toast } from 'sonner'
 
 export function UploadView() {

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { SurveyProvider, useSurvey } from './lib/survey-context'
 import { StepIndicator } from './components/step-indicator'
 import { UploadView } from './components/upload-view'
@@ -8,6 +9,16 @@ import { Toaster } from './components/ui/sonner'
 
 function AppContent() {
   const { state } = useSurvey()
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (state.raw !== null || state.chartConfigs.length > 0) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [state.raw, state.chartConfigs])
 
   return (
     <div className="min-h-screen bg-background">

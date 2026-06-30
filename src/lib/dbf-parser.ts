@@ -1,4 +1,4 @@
-import type { DbfField, DbfSchema, ParsedDbf, SurveyRecord } from './types'
+import type { DbfField, ParsedDbf, SurveyRecord } from './types'
 
 export class DbfParseError extends Error {
   constructor(message: string) {

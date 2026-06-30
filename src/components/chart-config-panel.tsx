@@ -73,7 +73,7 @@ function QuestionConfigSection({ config, onChange }: QuestionConfigSectionProps)
         <Select
           value={String(config.alternatives)}
           onValueChange={(v) => {
-            const n = parseInt(v, 10)
+            const n = parseInt(v ?? '', 10)
             const newLabels = { ...config.letterLabels }
             const validLetters = ALPHABET.slice(0, n)
             for (const key of Object.keys(newLabels)) {
@@ -174,9 +174,9 @@ export function ChartConfigPanel() {
       ) : (
         <ScrollArea className="flex-1">
           <Accordion
-            type="single"
-            value={state.chartConfigs[state.activeChartIndex]?.id}
-            onValueChange={(id) => {
+            value={state.chartConfigs[state.activeChartIndex] ? [state.chartConfigs[state.activeChartIndex].id] : []}
+            onValueChange={(ids) => {
+              const id = ids[0]
               if (id) {
                 const idx = state.chartConfigs.findIndex((c) => c.id === id)
                 if (idx >= 0) dispatch({ type: 'SET_ACTIVE_CHART_INDEX', payload: idx })
