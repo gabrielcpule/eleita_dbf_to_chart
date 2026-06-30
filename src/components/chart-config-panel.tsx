@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
 import { useSurvey } from '../lib/survey-context'
-import { detectQuestionColumns, type ChartConfig, type QuestionConfig } from '../lib/types'
+import { useAnsweredColumns } from '../lib/hooks'
+import { countUniqueLetters } from '../lib/questions'
+import type { ChartConfig, ChartType, QuestionConfig } from '../lib/types'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Checkbox } from './ui/checkbox'
@@ -19,26 +20,50 @@ import {
 } from './ui/accordion'
 import { ScrollArea } from './ui/scroll-area'
 
-function countUniqueLetters(records: Record<string, string>[], column: string): number {
-  const letters = new Set<string>()
-  for (const r of records) {
-    const v = (r[column] || '').trim()
-    if (v) letters.add(v)
-  }
-  return Math.max(2, Math.min(15, letters.size))
-}
-
 const ALPHABET = 'ABCDEFGHIJKLMNO'
+
+const CHART_TYPES: { value: ChartType; label: string }[] = [
+  { value: 'bar', label: 'Bar (vertical)' },
+  { value: 'horizontal-bar', label: 'Horizontal bar' },
+  { value: 'pie', label: 'Pie / Donut' },
+  { value: 'table', label: 'Summary table' },
+]
+
+function ChartTypeSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: ChartType
+  onChange: (v: ChartType) => void
+  className?: string
+}) {
+  return (
+    <Select value={value} onValueChange={(v) => v && onChange(v as ChartType)}>
+      <SelectTrigger className={className ?? 'h-8'}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {CHART_TYPES.map((t) => (
+          <SelectItem key={t.value} value={t.value}>
+            {t.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
 
 interface QuestionConfigSectionProps {
   config: QuestionConfig
+  defaultType: ChartType
   onChange: (updated: QuestionConfig) => void
 }
 
-function QuestionConfigSection({ config, onChange }: QuestionConfigSectionProps) {
+function QuestionConfigSection({ config, defaultType, onChange }: QuestionConfigSectionProps) {
   const letterInputs = ALPHABET.slice(0, config.alternatives).split('').map((letter) => (
     <div key={letter} className="flex items-center gap-2">
-      <span className="w-6 text-sm font-mono font-bold">{letter}</span>
+      <span className="w-6 text-sm font-mono font-bold text-primary">{letter}</span>
       <Input
         value={config.letterLabels[letter] || ''}
         onChange={(e) =>
@@ -55,7 +80,44 @@ function QuestionConfigSection({ config, onChange }: QuestionConfigSectionProps)
   ))
 
   return (
-    <div className="space-y-3 pl-4 border-l-2 border-muted">
+    <div className="space-y-3 pl-3 border-l-2 border-border">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Chart type</label>
+          <ChartTypeSelect
+            value={config.chartType ?? defaultType}
+            onChange={(v) => onChange({ ...config, chartType: v })}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Alternatives</label>
+          <Select
+            value={String(config.alternatives)}
+            onValueChange={(v) => {
+              const n = parseInt(v ?? '', 10)
+              const newLabels = { ...config.letterLabels }
+              const validLetters = ALPHABET.slice(0, n)
+              for (const key of Object.keys(newLabels)) {
+                if (!validLetters.includes(key)) delete newLabels[key]
+              }
+              onChange({ ...config, alternatives: n, letterLabels: newLabels })
+            }}
+          >
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 14 }, (_, i) => i + 2).map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n} ({ALPHABET.slice(0, n)})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-muted-foreground">Question label</label>
         <Input
@@ -64,35 +126,6 @@ function QuestionConfigSection({ config, onChange }: QuestionConfigSectionProps)
           placeholder={`Question ${config.column}`}
           className="h-8 text-sm"
         />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-muted-foreground">
-          Number of alternatives
-        </label>
-        <Select
-          value={String(config.alternatives)}
-          onValueChange={(v) => {
-            const n = parseInt(v ?? '', 10)
-            const newLabels = { ...config.letterLabels }
-            const validLetters = ALPHABET.slice(0, n)
-            for (const key of Object.keys(newLabels)) {
-              if (!validLetters.includes(key)) delete newLabels[key]
-            }
-            onChange({ ...config, alternatives: n, letterLabels: newLabels })
-          }}
-        >
-          <SelectTrigger className="h-8 w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Array.from({ length: 14 }, (_, i) => i + 2).map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {n} ({ALPHABET.slice(0, n)})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="space-y-1.5">
@@ -107,35 +140,28 @@ export function ChartConfigPanel() {
   const { state, dispatch } = useSurvey()
 
   const rawRecords = state.raw?.records || []
-  const questionColumns = useMemo(
-    () => (state.raw ? detectQuestionColumns(state.raw.schema.fields) : []),
-    [state.raw]
-  )
+  const questionColumns = useAnsweredColumns()
 
-  const handleAddChart = () => {
-    dispatch({ type: 'ADD_CHART' })
-  }
+  const activeId = state.chartConfigs[state.activeChartIndex]?.id
 
-  const handleRemoveChart = (id: string) => {
-    dispatch({ type: 'REMOVE_CHART', payload: id })
-  }
-
-  const handleUpdateChart = (config: ChartConfig) => {
+  const handleAddChart = () => dispatch({ type: 'ADD_CHART' })
+  const handleRemoveChart = (id: string) => dispatch({ type: 'REMOVE_CHART', payload: id })
+  const handleUpdateChart = (config: ChartConfig) =>
     dispatch({ type: 'UPDATE_CHART', payload: config })
-  }
 
   const handleToggleQuestion = (chart: ChartConfig, column: string, checked: boolean) => {
     if (checked) {
-      const alternatives = countUniqueLetters(rawRecords, column)
       const newConfig: QuestionConfig = {
         column,
         label: '',
-        alternatives,
+        alternatives: countUniqueLetters(rawRecords, column),
         letterLabels: {},
       }
       handleUpdateChart({
         ...chart,
-        questionConfigs: [...chart.questionConfigs, newConfig],
+        questionConfigs: [...chart.questionConfigs, newConfig].sort((a, b) =>
+          a.column.localeCompare(b.column)
+        ),
       })
     } else {
       handleUpdateChart({
@@ -161,20 +187,30 @@ export function ChartConfigPanel() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold text-sm">Charts</h2>
-        <Button size="sm" variant="outline" onClick={handleAddChart}>
-          + New Chart
+        <div>
+          <h2 className="font-semibold text-sm">Chart builder</h2>
+          <p className="text-xs text-muted-foreground">
+            {state.chartConfigs.length} chart{state.chartConfigs.length === 1 ? '' : 's'}
+          </p>
+        </div>
+        <Button size="sm" onClick={handleAddChart}>
+          + New chart
         </Button>
       </div>
 
       {state.chartConfigs.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">
-          No charts yet. Click &quot;+ New Chart&quot; to start.
-        </p>
+        <div className="rounded-lg border border-dashed text-center py-10 px-4">
+          <p className="text-sm text-muted-foreground">
+            No charts yet.
+          </p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={handleAddChart}>
+            Create your first chart
+          </Button>
+        </div>
       ) : (
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 -mr-2 pr-2">
           <Accordion
-            value={state.chartConfigs[state.activeChartIndex] ? [state.chartConfigs[state.activeChartIndex].id] : []}
+            value={activeId ? [activeId] : []}
             onValueChange={(ids) => {
               const id = ids[0]
               if (id) {
@@ -183,16 +219,24 @@ export function ChartConfigPanel() {
               }
             }}
           >
-            {state.chartConfigs.map((chart) => {
+            {state.chartConfigs.map((chart, chartIndex) => {
               const selectedCols = chart.questionConfigs.map((qc) => qc.column)
+              const usingAll = selectedCols.length === 0
 
               return (
                 <AccordionItem key={chart.id} value={chart.id}>
                   <div className="flex items-center">
                     <AccordionTrigger className="flex-1 text-sm">
-                      Chart {state.chartConfigs.indexOf(chart) + 1}
-                      <span className="ml-2 text-xs text-muted-foreground font-normal">
-                        ({chart.questionConfigs.length} questions)
+                      <span className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-primary/10 text-primary text-xs font-semibold">
+                          {chartIndex + 1}
+                        </span>
+                        Chart {chartIndex + 1}
+                        <span className="text-xs text-muted-foreground font-normal">
+                          {usingAll
+                            ? `all ${questionColumns.length}`
+                            : `${selectedCols.length} selected`}
+                        </span>
                       </span>
                     </AccordionTrigger>
                     {state.chartConfigs.length > 1 && (
@@ -204,15 +248,28 @@ export function ChartConfigPanel() {
                           e.stopPropagation()
                           handleRemoveChart(chart.id)
                         }}
-                        aria-label={`Remove Chart ${state.chartConfigs.indexOf(chart) + 1}`}
+                        aria-label={`Remove Chart ${chartIndex + 1}`}
                       >
                         ×
                       </Button>
                     )}
                   </div>
                   <AccordionContent>
-                    <div className="space-y-4 px-1">
-                      <div className="space-y-1">
+                    <div className="space-y-4 px-1 pb-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Default chart type
+                        </label>
+                        <ChartTypeSelect
+                          value={chart.chartType}
+                          onChange={(v) => handleUpdateChart({ ...chart, chartType: v })}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Used for new questions and the default all-questions view.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
                         <label className="text-xs font-medium text-muted-foreground">
                           Questions
                         </label>
@@ -220,7 +277,7 @@ export function ChartConfigPanel() {
                           {questionColumns.map((col) => (
                             <label
                               key={col}
-                              className="flex items-center gap-1.5 text-sm cursor-pointer py-0.5"
+                              className="flex items-center gap-1.5 text-sm cursor-pointer py-0.5 rounded hover:bg-muted/60 px-1"
                             >
                               <Checkbox
                                 checked={selectedCols.includes(col)}
@@ -232,44 +289,26 @@ export function ChartConfigPanel() {
                             </label>
                           ))}
                         </div>
+                        {usingAll && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Nothing selected — showing all {questionColumns.length} questions.
+                            Check specific ones to narrow down.
+                          </p>
+                        )}
                       </div>
 
                       {chart.questionConfigs.map((qc) => (
                         <div key={qc.column} className="space-y-2">
-                          <h4 className="text-sm font-medium">{qc.column}</h4>
+                          <h4 className="text-sm font-semibold">{qc.column}</h4>
                           <QuestionConfigSection
                             config={qc}
+                            defaultType={chart.chartType}
                             onChange={(updated) =>
                               handleUpdateQuestionConfig(chart, qc.column, updated)
                             }
                           />
                         </div>
                       ))}
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Chart type
-                        </label>
-                        <Select
-                          value={chart.chartType}
-                          onValueChange={(v) =>
-                            handleUpdateChart({
-                              ...chart,
-                              chartType: v as ChartConfig['chartType'],
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="bar">Bar (Vertical)</SelectItem>
-                            <SelectItem value="horizontal-bar">Horizontal Bar</SelectItem>
-                            <SelectItem value="pie">Pie / Donut</SelectItem>
-                            <SelectItem value="table">Summary Table</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>

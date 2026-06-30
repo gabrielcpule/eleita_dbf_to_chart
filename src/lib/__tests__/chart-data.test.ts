@@ -80,4 +80,34 @@ describe('computeChartData', () => {
     const result = computeChartData(records, config)
     expect(result[0].data[0].label).toBe('A')
   })
+
+  it('tags each series with its effective chart type (per-question override wins)', () => {
+    const config: ChartConfig = {
+      id: 'chart-1',
+      chartType: 'bar',
+      questionConfigs: [
+        { column: 'R01', label: 'Q1', alternatives: 2, letterLabels: {} },
+        { column: 'R02', label: 'Q2', alternatives: 2, letterLabels: {}, chartType: 'pie' },
+      ],
+    }
+    const result = computeChartData([{ R01: 'A', R02: 'B' }], config)
+    expect(result[0].chartType).toBe('bar') // inherits chart default
+    expect(result[1].chartType).toBe('pie') // per-question override
+  })
+
+  it('renders all answered columns when no questions are selected (fallback)', () => {
+    const config: ChartConfig = { id: 'chart-1', questionConfigs: [], chartType: 'bar' }
+    const records = [
+      { R01: 'A', R02: 'B' },
+      { R01: 'A', R02: 'C' },
+    ]
+    const result = computeChartData(records, config, ['R01', 'R02'])
+    expect(result.map((s) => s.questionColumn)).toEqual(['R01', 'R02'])
+    expect(result[0].data.find((d) => d.letter === 'A')?.count).toBe(2)
+  })
+
+  it('renders nothing when no questions selected and no fallback columns given', () => {
+    const config: ChartConfig = { id: 'chart-1', questionConfigs: [], chartType: 'bar' }
+    expect(computeChartData([{ R01: 'A' }], config)).toHaveLength(0)
+  })
 })

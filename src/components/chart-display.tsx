@@ -13,9 +13,10 @@ import {
   Cell,
 } from 'recharts'
 import { computeChartData } from '../lib/chart-data'
-import { useFilteredRecords } from '../lib/hooks'
+import { useFilteredRecords, useAnsweredColumns } from '../lib/hooks'
 import { useSurvey } from '../lib/survey-context'
 import { Card } from './ui/card'
+import { Badge } from './ui/badge'
 import {
   Table,
   TableBody,
@@ -31,32 +32,42 @@ const COLORS = [
   '#0d9488', '#ea580c', '#6366f1', '#65a30d', '#e11d48',
 ]
 
+const TYPE_LABEL: Record<string, string> = {
+  bar: 'Bar',
+  'horizontal-bar': 'Horizontal bar',
+  pie: 'Pie / Donut',
+  table: 'Table',
+}
+
 export function ChartDisplay() {
   const { state, dispatch } = useSurvey()
   const filteredRecords = useFilteredRecords()
+  const answeredColumns = useAnsweredColumns()
   const activeChart = state.chartConfigs[state.activeChartIndex]
 
   const chartSeries = useMemo(() => {
-    if (!activeChart || activeChart.questionConfigs.length === 0) return []
-    return computeChartData(filteredRecords, activeChart)
-  }, [activeChart, filteredRecords])
+    if (!activeChart) return []
+    return computeChartData(filteredRecords, activeChart, answeredColumns)
+  }, [activeChart, filteredRecords, answeredColumns])
 
   if (!activeChart) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        No chart selected. Create a chart to get started.
+      <div className="flex flex-col items-center justify-center h-72 rounded-xl border border-dashed text-center text-muted-foreground gap-1">
+        <p className="text-sm font-medium">No chart selected</p>
+        <p className="text-xs">Create a chart to start visualizing responses.</p>
       </div>
     )
   }
 
-  if (activeChart.questionConfigs.length === 0) {
+  if (chartSeries.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        Select at least one question column to visualize.
+      <div className="flex items-center justify-center h-72 rounded-xl border border-dashed text-center text-muted-foreground text-sm">
+        No answered questions found in this file.
       </div>
     )
   }
 
+  const usingAll = activeChart.questionConfigs.length === 0
   const navigate = (dir: -1 | 1) => {
     const newIdx = state.activeChartIndex + dir
     if (newIdx >= 0 && newIdx < state.chartConfigs.length) {
@@ -71,52 +82,67 @@ export function ChartDisplay() {
           <button
             onClick={() => navigate(-1)}
             disabled={state.activeChartIndex === 0}
-            className="text-sm px-2 py-1 rounded border hover:bg-muted disabled:opacity-30"
+            className="text-sm h-7 w-7 grid place-items-center rounded border hover:bg-muted disabled:opacity-30"
             aria-label="Previous chart"
           >
             ◀
           </button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground tabular-nums">
             Chart {state.activeChartIndex + 1} of {state.chartConfigs.length}
           </span>
           <button
             onClick={() => navigate(1)}
             disabled={state.activeChartIndex >= state.chartConfigs.length - 1}
-            className="text-sm px-2 py-1 rounded border hover:bg-muted disabled:opacity-30"
+            className="text-sm h-7 w-7 grid place-items-center rounded border hover:bg-muted disabled:opacity-30"
             aria-label="Next chart"
           >
             ▶
           </button>
         </div>
+        {usingAll && (
+          <Badge variant="secondary" className="text-xs font-normal">
+            Showing all {chartSeries.length} questions
+          </Badge>
+        )}
       </div>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {chartSeries.map((series) => (
-          <Card key={series.questionColumn} className="p-4" id={`chart-${series.questionColumn}`}>
-            <h3 className="text-sm font-semibold mb-3">
-              {series.questionLabel || series.questionColumn}
-            </h3>
-            {activeChart.chartType === 'bar' && (
-              <ResponsiveContainer width="100%" height={300}>
+          <Card
+            key={series.questionColumn}
+            className="p-4"
+            id={`chart-${series.questionColumn}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="text-sm font-semibold truncate">
+                {series.questionLabel || series.questionColumn}
+              </h3>
+              <Badge variant="outline" className="shrink-0 text-[10px] font-normal">
+                {TYPE_LABEL[series.chartType]}
+              </Badge>
+            </div>
+
+            {series.chartType === 'bar' && (
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={series.data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                   <Tooltip />
                   <Bar dataKey="count" name="Responses" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
 
-            {activeChart.chartType === 'horizontal-bar' && (
-              <ResponsiveContainer width="100%" height={300}>
+            {series.chartType === 'horizontal-bar' && (
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart
                   data={series.data}
                   layout="vertical"
                   margin={{ top: 5, right: 20, bottom: 5, left: 80 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
                   <YAxis dataKey="label" type="category" tick={{ fontSize: 12 }} width={70} />
                   <Tooltip />
                   <Bar dataKey="count" name="Responses" fill={COLORS[1]} radius={[0, 4, 4, 0]} />
@@ -124,8 +150,8 @@ export function ChartDisplay() {
               </ResponsiveContainer>
             )}
 
-            {activeChart.chartType === 'pie' && (
-              <ResponsiveContainer width="100%" height={300}>
+            {series.chartType === 'pie' && (
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={series.data}
@@ -133,7 +159,7 @@ export function ChartDisplay() {
                     nameKey="label"
                     cx="50%"
                     cy="50%"
-                    outerRadius={100}
+                    outerRadius={95}
                     innerRadius={40}
                     label={({ name, value }) => `${name}: ${value}`}
                     labelLine={{ strokeWidth: 1 }}
@@ -148,7 +174,7 @@ export function ChartDisplay() {
               </ResponsiveContainer>
             )}
 
-            {activeChart.chartType === 'table' && (
+            {series.chartType === 'table' && (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -163,8 +189,8 @@ export function ChartDisplay() {
                     return (
                       <TableRow key={d.letter}>
                         <TableCell className="font-mono text-sm">{d.label}</TableCell>
-                        <TableCell className="text-right">{d.count}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right tabular-nums">{d.count}</TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {total > 0 ? ((d.count / total) * 100).toFixed(1) : '0.0'}%
                         </TableCell>
                       </TableRow>

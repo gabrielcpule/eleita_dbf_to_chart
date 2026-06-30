@@ -5,7 +5,18 @@ import { INITIAL_STATE, createEmptyChartConfig } from './types'
 function surveyReducer(state: SurveyState, action: SurveyAction): SurveyState {
   switch (action.type) {
     case 'SET_RAW_DATA':
-      return { ...state, raw: action.payload, step: 1 }
+      return {
+        ...state,
+        raw: action.payload,
+        step: 1,
+        // Start with one empty chart so the workspace immediately shows all
+        // questions by default (render-all). Existing charts are preserved.
+        chartConfigs:
+          state.chartConfigs.length > 0
+            ? state.chartConfigs
+            : [createEmptyChartConfig()],
+        activeChartIndex: 0,
+      }
 
     case 'SET_DEMOGRAPHICS_FILTER':
       return {
