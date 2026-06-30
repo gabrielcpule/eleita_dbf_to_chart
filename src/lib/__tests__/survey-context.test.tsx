@@ -17,8 +17,8 @@ describe('SurveyContext', () => {
 
   it('sets step', () => {
     const { result } = renderHook(() => useSurvey(), { wrapper })
-    act(() => result.current.dispatch({ type: 'SET_STEP', payload: 2 }))
-    expect(result.current.state.step).toBe(2)
+    act(() => result.current.dispatch({ type: 'SET_STEP', payload: 1 }))
+    expect(result.current.state.step).toBe(1)
   })
 
   it('adds a chart', () => {
