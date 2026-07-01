@@ -1,6 +1,7 @@
 import { createContext, useContext, useReducer, type Dispatch, type ReactNode } from 'react'
 import type { SurveyState, SurveyAction } from './types'
-import { INITIAL_STATE, createEmptyChartConfig } from './types'
+import { INITIAL_STATE, createEmptyChartConfig, DEMOGRAPHIC_COLUMNS } from './types'
+import { deriveDemographicLabels } from './demographics'
 
 function surveyReducer(state: SurveyState, action: SurveyAction): SurveyState {
   switch (action.type) {
@@ -9,6 +10,11 @@ function surveyReducer(state: SurveyState, action: SurveyAction): SurveyState {
         ...state,
         raw: action.payload,
         step: 1,
+        // Pre-fill editable demographic labels from the NOME* fields.
+        demographicLabels: deriveDemographicLabels(
+          action.payload.records,
+          [...DEMOGRAPHIC_COLUMNS]
+        ),
         // Start with one empty chart so the workspace immediately shows all
         // questions by default (render-all). Existing charts are preserved.
         chartConfigs:
@@ -62,6 +68,20 @@ function surveyReducer(state: SurveyState, action: SurveyAction): SurveyState {
 
     case 'LOAD_CONFIG':
       return { ...state, chartConfigs: action.payload, activeChartIndex: 0 }
+
+    case 'SET_DEMOGRAPHIC_LABELS':
+      return { ...state, demographicLabels: action.payload }
+
+    case 'SET_DEMOGRAPHIC_LABEL': {
+      const { column, value, label } = action.payload
+      const forColumn = { ...(state.demographicLabels[column] || {}) }
+      if (label.trim()) forColumn[value] = label
+      else delete forColumn[value]
+      return {
+        ...state,
+        demographicLabels: { ...state.demographicLabels, [column]: forColumn },
+      }
+    }
 
     case 'SET_STEP':
       return { ...state, step: action.payload }

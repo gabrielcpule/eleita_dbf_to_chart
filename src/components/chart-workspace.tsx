@@ -2,9 +2,11 @@ import { useState, useMemo } from 'react'
 import { useSurvey } from '../lib/survey-context'
 import { useFilteredRecords } from '../lib/hooks'
 import { getUniqueValues } from '../lib/filter-engine'
+import { demographicLabel } from '../lib/demographics'
 import { DEMOGRAPHIC_COLUMNS, type DemographicsFilter } from '../lib/types'
 import { ChartConfigPanel } from './chart-config-panel'
 import { ChartDisplay } from './chart-display'
+import { DemographicLabelsEditor } from './demographic-labels-editor'
 import { ExportMenu } from './export-menu'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
@@ -162,7 +164,7 @@ export function ChartWorkspace() {
                   <SelectItem value="all">All</SelectItem>
                   {demographicOptions[col]?.map((val) => (
                     <SelectItem key={val} value={val}>
-                      {val}
+                      {demographicLabel(state.demographicLabels, col, val)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -180,7 +182,9 @@ export function ChartWorkspace() {
                 className="group inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs hover:bg-muted transition-colors"
               >
                 <span className="font-medium">{col}</span>
-                <span className="text-muted-foreground">{state.filters.demographics[col]}</span>
+                <span className="text-muted-foreground">
+                  {demographicLabel(state.demographicLabels, col, state.filters.demographics[col])}
+                </span>
                 <span className="text-muted-foreground group-hover:text-destructive">×</span>
               </button>
             ))}
@@ -192,6 +196,8 @@ export function ChartWorkspace() {
             No records match these filters. Try clearing some.
           </p>
         )}
+
+        <DemographicLabelsEditor />
       </Card>
 
       {/* Data table drawer */}
