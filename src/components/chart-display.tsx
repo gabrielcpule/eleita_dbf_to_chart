@@ -12,7 +12,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { computeChartData } from '../lib/chart-data'
+import { computeChartData, type ChartSeries } from '../lib/chart-data'
 import { useFilteredRecords, useAnsweredColumns } from '../lib/hooks'
 import { useSurvey } from '../lib/survey-context'
 import { Card } from './ui/card'
@@ -26,17 +26,170 @@ import {
   TableRow,
 } from './ui/table'
 
-const COLORS = [
-  '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea',
-  '#0891b2', '#d97706', '#4f46e5', '#059669', '#c026d3',
-  '#0d9488', '#ea580c', '#6366f1', '#65a30d', '#e11d48',
-]
-
 const TYPE_LABEL: Record<string, string> = {
   bar: 'Bar',
   'horizontal-bar': 'Horizontal bar',
   pie: 'Pie / Donut',
   table: 'Table',
+}
+
+const pctFmt = (v: number) => `${v.toFixed(v < 10 ? 1 : 0)}%`
+
+/** Recharts row objects keyed by group; values are percentages. */
+function toBarData(series: ChartSeries) {
+  return series.rows.map((r) => {
+    const o: Record<string, string | number> = { label: r.label }
+    for (const g of series.groups) o[g.key] = r.values[g.key]
+    return o
+  })
+}
+
+function BarSeries({ series, horizontal }: { series: ChartSeries; horizontal: boolean }) {
+  const data = toBarData(series)
+  const bars = series.comparing ? (
+    series.groups.map((g) => (
+      <Bar
+        key={g.key}
+        dataKey={g.key}
+        name={g.label || g.key}
+        fill={g.color}
+        radius={horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0]}
+      />
+    ))
+  ) : (
+    <Bar dataKey="__all__" name="Share" radius={horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0]}>
+      {series.rows.map((r) => (
+        <Cell key={r.letter} fill={r.color} />
+      ))}
+    </Bar>
+  )
+
+  return (
+    <ResponsiveContainer width="100%" height={horizontal ? 300 : 280}>
+      <BarChart
+        data={data}
+        layout={horizontal ? 'vertical' : 'horizontal'}
+        margin={{ top: 5, right: 20, bottom: 5, left: horizontal ? 80 : 0 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" vertical={horizontal} horizontal={!horizontal} />
+        {horizontal ? (
+          <>
+            <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={pctFmt} />
+            <YAxis dataKey="label" type="category" tick={{ fontSize: 12 }} width={70} />
+          </>
+        ) : (
+          <>
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 12 }} tickFormatter={pctFmt} />
+          </>
+        )}
+        {bars}
+        <Tooltip formatter={(value) => pctFmt(Number(value))} />
+        {series.comparing && <Legend />}
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function PieSeries({ series }: { series: ChartSeries }) {
+  // One donut per comparison group (within-group proportions), or a single donut.
+  return (
+    <div className="flex flex-wrap justify-around gap-2">
+      {series.groups.map((g) => {
+        const groupTotal = series.rows.reduce((s, r) => s + r.counts[g.key], 0)
+        const data = series.rows
+          .map((r) => ({
+            name: r.label,
+            value: r.counts[g.key],
+            pct: groupTotal > 0 ? (r.counts[g.key] / groupTotal) * 100 : 0,
+            color: r.color,
+          }))
+          .filter((d) => d.value > 0)
+
+        return (
+          <div key={g.key} className="flex flex-col items-center">
+            {series.comparing && (
+              <span className="text-xs font-medium text-muted-foreground mb-1">
+                {g.label || g.key}
+              </span>
+            )}
+            <ResponsiveContainer width={series.comparing ? 200 : 320} height={240}>
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={series.comparing ? 70 : 95}
+                  innerRadius={series.comparing ? 30 : 40}
+                  label={({ payload }) => pctFmt(payload.pct)}
+                  labelLine={{ strokeWidth: 1 }}
+                >
+                  {data.map((d, i) => (
+                    <Cell key={i} fill={d.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(_v, _n, item: { payload?: { pct?: number } }) =>
+                    pctFmt(item?.payload?.pct ?? 0)
+                  }
+                />
+                {!series.comparing && <Legend />}
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function TableSeries({ series }: { series: ChartSeries }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Answer</TableHead>
+          {series.comparing ? (
+            series.groups.map((g) => (
+              <TableHead key={g.key} className="text-right">
+                {g.label || g.key}
+              </TableHead>
+            ))
+          ) : (
+            <>
+              <TableHead className="text-right">%</TableHead>
+              <TableHead className="text-right">n</TableHead>
+            </>
+          )}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {series.rows.map((r) => (
+          <TableRow key={r.letter}>
+            <TableCell className="font-mono text-sm">{r.label}</TableCell>
+            {series.comparing ? (
+              series.groups.map((g) => (
+                <TableCell key={g.key} className="text-right tabular-nums">
+                  {pctFmt(r.values[g.key])}
+                </TableCell>
+              ))
+            ) : (
+              <>
+                <TableCell className="text-right tabular-nums">
+                  {pctFmt(r.values.__all__)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {r.counts.__all__}
+                </TableCell>
+              </>
+            )}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
 }
 
 export function ChartDisplay() {
@@ -47,8 +200,8 @@ export function ChartDisplay() {
 
   const chartSeries = useMemo(() => {
     if (!activeChart) return []
-    return computeChartData(filteredRecords, activeChart, answeredColumns)
-  }, [activeChart, filteredRecords, answeredColumns])
+    return computeChartData(filteredRecords, activeChart, answeredColumns, state.demographicLabels)
+  }, [activeChart, filteredRecords, answeredColumns, state.demographicLabels])
 
   if (!activeChart) {
     return (
@@ -99,11 +252,18 @@ export function ChartDisplay() {
             ▶
           </button>
         </div>
-        {usingAll && (
-          <Badge variant="secondary" className="text-xs font-normal">
-            Showing all {chartSeries.length} questions
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {activeChart.compareBy && (
+            <Badge variant="outline" className="text-xs font-normal">
+              Split by {activeChart.compareBy}
+            </Badge>
+          )}
+          {usingAll && (
+            <Badge variant="secondary" className="text-xs font-normal">
+              Showing all {chartSeries.length} questions
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -122,83 +282,11 @@ export function ChartDisplay() {
               </Badge>
             </div>
 
-            {series.chartType === 'bar' && (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={series.data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Responses" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            {(series.chartType === 'bar' || series.chartType === 'horizontal-bar') && (
+              <BarSeries series={series} horizontal={series.chartType === 'horizontal-bar'} />
             )}
-
-            {series.chartType === 'horizontal-bar' && (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={series.data}
-                  layout="vertical"
-                  margin={{ top: 5, right: 20, bottom: 5, left: 80 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
-                  <YAxis dataKey="label" type="category" tick={{ fontSize: 12 }} width={70} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Responses" fill={COLORS[1]} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-
-            {series.chartType === 'pie' && (
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={series.data}
-                    dataKey="count"
-                    nameKey="label"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={95}
-                    innerRadius={40}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    labelLine={{ strokeWidth: 1 }}
-                  >
-                    {series.data.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-
-            {series.chartType === 'table' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Answer</TableHead>
-                    <TableHead className="text-right">Count</TableHead>
-                    <TableHead className="text-right">%</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {series.data.map((d) => {
-                    const total = series.data.reduce((s, x) => s + x.count, 0)
-                    return (
-                      <TableRow key={d.letter}>
-                        <TableCell className="font-mono text-sm">{d.label}</TableCell>
-                        <TableCell className="text-right tabular-nums">{d.count}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {total > 0 ? ((d.count / total) * 100).toFixed(1) : '0.0'}%
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            )}
+            {series.chartType === 'pie' && <PieSeries series={series} />}
+            {series.chartType === 'table' && <TableSeries series={series} />}
           </Card>
         ))}
       </div>

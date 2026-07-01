@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { render, screen, fireEvent, within } from '@testing-library/react'
@@ -82,5 +82,41 @@ describe('ChartWorkspace integration (real aguasbel.DBF)', () => {
     expect(container.querySelector('#chart-R01')).not.toBeNull()
     expect(container.querySelector('#chart-R02')).toBeNull()
     expect(screen.queryByText(/Showing all 18 questions/)).not.toBeInTheDocument()
+  })
+
+  it('renders a comparison split by SEXO without crashing', () => {
+    function CompareHarness() {
+      const { state, dispatch } = useSurvey()
+      const done = useRef(false)
+      useEffect(() => {
+        dispatch({ type: 'SET_RAW_DATA', payload: data })
+      }, [dispatch])
+      useEffect(() => {
+        const chart = state.chartConfigs[0]
+        if (state.raw && chart && !done.current) {
+          done.current = true
+          dispatch({
+            type: 'UPDATE_CHART',
+            payload: {
+              ...chart,
+              compareBy: 'SEXO',
+              questionConfigs: [
+                { column: 'R01', label: '', alternatives: 6, letterLabels: {} },
+              ],
+            },
+          })
+        }
+      }, [state.raw, state.chartConfigs, dispatch])
+      return <ChartWorkspace />
+    }
+    const { container } = render(
+      <SurveyProvider>
+        <CompareHarness />
+      </SurveyProvider>
+    )
+    expect(screen.getByText(/Split by SEXO/)).toBeInTheDocument()
+    expect(container.querySelector('#chart-R01')).not.toBeNull()
+    // demographic labels auto-derived from NOMESEXO appear (color editor group swatch)
+    expect(screen.getAllByText('MASCULINO').length).toBeGreaterThan(0)
   })
 })

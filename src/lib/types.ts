@@ -42,7 +42,17 @@ export interface ChartConfig {
   questionConfigs: QuestionConfig[]
   /** Default type used for newly-added questions and for the render-all fallback. */
   chartType: ChartType
+  /** Demographic column to split each answer by (contrasting colors). Undefined = no split. */
+  compareBy?: string
+  /**
+   * Colour overrides. Keys are namespaced: `grp:<value>` for comparison groups,
+   * `ans:<letter>` for answer options. Missing keys fall back to the palette.
+   */
+  colors?: Record<string, string>
 }
+
+/** Custom display labels for demographic values, keyed by column then raw value. */
+export type DemographicLabels = Record<string, Record<string, string>>
 
 export interface DemographicsFilter {
   LOCAL: string
@@ -69,6 +79,8 @@ export type SurveyAction =
   | { type: 'UPDATE_CHART'; payload: ChartConfig }
   | { type: 'SET_ACTIVE_CHART_INDEX'; payload: number }
   | { type: 'LOAD_CONFIG'; payload: ChartConfig[] }
+  | { type: 'SET_DEMOGRAPHIC_LABELS'; payload: DemographicLabels }
+  | { type: 'SET_DEMOGRAPHIC_LABEL'; payload: { column: string; value: string; label: string } }
   | { type: 'SET_STEP'; payload: StepIndex }
 
 export const INITIAL_DEMOGRAPHICS_FILTER: DemographicsFilter = {
@@ -102,6 +114,7 @@ export function createEmptyChartConfig(): ChartConfig {
     id: generateId(),
     questionConfigs: [],
     chartType: 'bar',
+    colors: {},
   }
 }
 
@@ -111,6 +124,7 @@ export interface SurveyState {
     demographics: DemographicsFilter
     excludeEmptyColumns: string[]
   }
+  demographicLabels: DemographicLabels
   chartConfigs: ChartConfig[]
   activeChartIndex: number
   step: StepIndex
@@ -122,6 +136,7 @@ export const INITIAL_STATE: SurveyState = {
     demographics: { ...INITIAL_DEMOGRAPHICS_FILTER },
     excludeEmptyColumns: [],
   },
+  demographicLabels: {},
   chartConfigs: [],
   activeChartIndex: 0,
   step: 0,

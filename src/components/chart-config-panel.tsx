@@ -1,7 +1,15 @@
+import { useMemo } from 'react'
 import { useSurvey } from '../lib/survey-context'
 import { useAnsweredColumns } from '../lib/hooks'
 import { countUniqueLetters } from '../lib/questions'
-import type { ChartConfig, ChartType, QuestionConfig } from '../lib/types'
+import { demographicLabel } from '../lib/demographics'
+import { resolveColor, groupColorKey, answerColorKey } from '../lib/colors'
+import {
+  DEMOGRAPHIC_COLUMNS,
+  type ChartConfig,
+  type ChartType,
+  type QuestionConfig,
+} from '../lib/types'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Checkbox } from './ui/checkbox'
@@ -28,6 +36,15 @@ const CHART_TYPES: { value: ChartType; label: string }[] = [
   { value: 'pie', label: 'Pie / Donut' },
   { value: 'table', label: 'Summary table' },
 ]
+
+function distinctSorted(records: Record<string, string>[], column: string): string[] {
+  const set = new Set<string>()
+  for (const r of records) {
+    const v = (r[column] || '').trim()
+    if (v) set.add(v)
+  }
+  return Array.from(set).sort()
+}
 
 function ChartTypeSelect({
   value,
@@ -141,8 +158,22 @@ export function ChartConfigPanel() {
 
   const rawRecords = state.raw?.records || []
   const questionColumns = useAnsweredColumns()
-
   const activeId = state.chartConfigs[state.activeChartIndex]?.id
+
+  // Demographics usable as a comparison axis (need ≥2 distinct values).
+  const comparableDemographics = useMemo(
+    () =>
+      DEMOGRAPHIC_COLUMNS.filter((col) => {
+        const seen = new Set<string>()
+        for (const r of rawRecords) {
+          const v = (r[col] || '').trim()
+          if (v) seen.add(v)
+          if (seen.size > 1) return true
+        }
+        return false
+      }),
+    [rawRecords]
+  )
 
   const handleAddChart = () => dispatch({ type: 'ADD_CHART' })
   const handleRemoveChart = (id: string) => dispatch({ type: 'REMOVE_CHART', payload: id })
@@ -184,6 +215,32 @@ export function ChartConfigPanel() {
     })
   }
 
+  const setColor = (chart: ChartConfig, key: string, value: string) =>
+    handleUpdateChart({ ...chart, colors: { ...(chart.colors || {}), [key]: value } })
+
+  // The swatches to show for the currently-coloured dimension.
+  const colorEntries = (chart: ChartConfig): { key: string; label: string; color: string }[] => {
+    if (chart.compareBy) {
+      return distinctSorted(rawRecords, chart.compareBy).map((v, i) => {
+        const key = groupColorKey(v)
+        return {
+          key,
+          label: demographicLabel(state.demographicLabels, chart.compareBy!, v),
+          color: resolveColor(chart.colors, key, i),
+        }
+      })
+    }
+    const maxAlt = chart.questionConfigs.length
+      ? Math.max(...chart.questionConfigs.map((q) => q.alternatives))
+      : Math.max(2, ...questionColumns.map((c) => countUniqueLetters(rawRecords, c)))
+    return ALPHABET.slice(0, maxAlt)
+      .split('')
+      .map((letter, i) => {
+        const key = answerColorKey(letter)
+        return { key, label: letter, color: resolveColor(chart.colors, key, i) }
+      })
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
@@ -200,9 +257,7 @@ export function ChartConfigPanel() {
 
       {state.chartConfigs.length === 0 ? (
         <div className="rounded-lg border border-dashed text-center py-10 px-4">
-          <p className="text-sm text-muted-foreground">
-            No charts yet.
-          </p>
+          <p className="text-sm text-muted-foreground">No charts yet.</p>
           <Button size="sm" variant="outline" className="mt-3" onClick={handleAddChart}>
             Create your first chart
           </Button>
@@ -256,17 +311,43 @@ export function ChartConfigPanel() {
                   </div>
                   <AccordionContent>
                     <div className="space-y-4 px-1 pb-2">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Default chart type
-                        </label>
-                        <ChartTypeSelect
-                          value={chart.chartType}
-                          onChange={(v) => handleUpdateChart({ ...chart, chartType: v })}
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Used for new questions and the default all-questions view.
-                        </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Default chart type
+                          </label>
+                          <ChartTypeSelect
+                            value={chart.chartType}
+                            onChange={(v) => handleUpdateChart({ ...chart, chartType: v })}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Compare by
+                          </label>
+                          <Select
+                            value={chart.compareBy ?? 'none'}
+                            onValueChange={(v) =>
+                              handleUpdateChart({
+                                ...chart,
+                                compareBy: !v || v === 'none' ? undefined : v,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Don&apos;t split</SelectItem>
+                              {comparableDemographics.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
                       <div className="space-y-1.5">
@@ -295,6 +376,30 @@ export function ChartConfigPanel() {
                             Check specific ones to narrow down.
                           </p>
                         )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          {chart.compareBy ? `Colours — ${chart.compareBy} groups` : 'Colours — answers'}
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {colorEntries(chart).map((e) => (
+                            <label
+                              key={e.key}
+                              className="flex items-center gap-1.5 text-xs"
+                              title={e.label}
+                            >
+                              <input
+                                type="color"
+                                value={e.color}
+                                onChange={(ev) => setColor(chart, e.key, ev.target.value)}
+                                className="h-6 w-6 rounded border cursor-pointer bg-transparent p-0"
+                                aria-label={`Colour for ${e.label}`}
+                              />
+                              <span className="max-w-[84px] truncate">{e.label}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
 
                       {chart.questionConfigs.map((qc) => (
